@@ -40,6 +40,16 @@ export async function fetchTopByTxn(limit = 20) {
   return data;
 }
 
+export async function fetchHyperscalerDistribution() {
+  const { data } = await api.get('/summary/hyperscaler-distribution');
+  return data.data;
+}
+
+export async function fetchHyperscalerByDc() {
+  const { data } = await api.get('/summary/hyperscaler-by-dc');
+  return data.data;
+}
+
 export async function fetchInstanceHistory(instanceName) {
   const { data } = await api.get(`/instances/${instanceName}/history`);
   return data;

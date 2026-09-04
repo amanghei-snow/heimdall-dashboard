@@ -62,6 +62,31 @@ def dbtype_distribution(db: Session = Depends(get_db)):
     return {"data": [{"db_type": r[0] or "Unknown", "count": r[1]} for r in rows]}
 
 
+@router.get("/summary/hyperscaler-distribution")
+def hyperscaler_distribution(db: Session = Depends(get_db)):
+    """Hyperscaler vs on-prem distribution for pie chart."""
+    hs = db.query(func.count(Instance.id)).filter(Instance.is_hyperscaler == True).scalar() or 0
+    total = db.query(func.count(Instance.id)).scalar() or 0
+    on_prem = total - hs
+    return {"data": [
+        {"label": "Hyperscaler", "count": hs},
+        {"label": "On-Prem / Legacy", "count": on_prem},
+    ]}
+
+
+@router.get("/summary/hyperscaler-by-dc")
+def hyperscaler_by_dc(db: Session = Depends(get_db)):
+    """Hyperscaler instance count grouped by datacenter pod."""
+    rows = (
+        db.query(Instance.datacenter, func.count(Instance.id))
+        .filter(Instance.is_hyperscaler == True, Instance.datacenter != "")
+        .group_by(Instance.datacenter)
+        .order_by(func.count(Instance.id).desc())
+        .all()
+    )
+    return {"data": [{"dc": r[0], "count": r[1]} for r in rows]}
+
+
 @router.get("/summary/top-by-dbsize")
 def top_by_dbsize(db: Session = Depends(get_db), limit: int = 20):
     """Top N instances by DB size for bar chart."""

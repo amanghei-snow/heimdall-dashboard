@@ -3,19 +3,22 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts'
-import { fetchTopByDbsize, fetchTopByTxn, fetchTierDistribution, fetchDbtypeDistribution } from '../api'
+import { fetchTopByDbsize, fetchTopByTxn, fetchTierDistribution, fetchDbtypeDistribution, fetchHyperscalerDistribution, fetchHyperscalerByDc } from '../api'
 
 const TIER_PALETTE = [
   '#d32f2f', '#e65100', '#f9a825', '#2196f3', '#4caf50',
   '#9e9e9e', '#78909c', '#7c3aed', '#ec4899', '#06b6d4', '#737373',
 ]
 const DBTYPE_COLORS = ['#3b82f6', '#62d84e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
+const HS_COLORS = ['#06b6d4', '#64748b']
 
 export default function ChartsSection() {
   const [barData, setBarData] = useState(null)
   const [txnData, setTxnData] = useState(null)
   const [tierData, setTierData] = useState(null)
   const [dbtypeData, setDbtypeData] = useState(null)
+  const [hsData, setHsData] = useState(null)
+  const [hsDcData, setHsDcData] = useState(null)
 
   useEffect(() => {
     fetchTopByDbsize().then(setBarData).catch(console.error)
@@ -28,6 +31,14 @@ export default function ChartsSection() {
       setTierData(top)
     }).catch(console.error)
     fetchDbtypeDistribution().then(setDbtypeData).catch(console.error)
+    fetchHyperscalerDistribution().then(setHsData).catch(console.error)
+    fetchHyperscalerByDc().then(raw => {
+      if (!raw) return
+      const top = raw.slice(0, 15)
+      const otherCount = raw.slice(15).reduce((sum, r) => sum + r.count, 0)
+      if (otherCount > 0) top.push({ dc: 'Other', count: otherCount })
+      setHsDcData(top)
+    }).catch(console.error)
   }, [])
 
   if (!barData && !txnData && !tierData && !dbtypeData) return null
@@ -154,6 +165,74 @@ export default function ChartsSection() {
           )}
         </div>
       </div>
+
+      {/* Row 3: Hyperscaler pie + datacenter bar */}
+      {(hsData || hsDcData) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+          {/* Hyperscaler vs On-Prem pie */}
+          <div className="border border-[#e8e8e8] rounded p-3">
+            <h3 className="text-[11px] font-semibold text-[#333] mb-2">Hyperscaler vs On-Prem</h3>
+            {hsData && (
+              <div className="flex items-center">
+                <ResponsiveContainer width="50%" height={180}>
+                  <PieChart>
+                    <Pie
+                      data={hsData}
+                      dataKey="count"
+                      nameKey="label"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={70}
+                      innerRadius={35}
+                      paddingAngle={2}
+                    >
+                      {hsData.map((entry, i) => (
+                        <Cell key={i} fill={HS_COLORS[i % HS_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ fontSize: 11, border: '1px solid #d6d6d6', borderRadius: 2 }}
+                      formatter={(value, name) => [`${value.toLocaleString()} instances`, name]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex-1 pl-2 space-y-1.5">
+                  {hsData.map((entry, i) => {
+                    const total = hsData.reduce((s, e) => s + e.count, 0)
+                    const pct = ((entry.count / total) * 100).toFixed(1)
+                    return (
+                      <div key={i} className="flex items-center gap-2 text-[11px]">
+                        <span className="w-3 h-3 rounded-sm inline-block flex-shrink-0" style={{ backgroundColor: HS_COLORS[i % HS_COLORS.length] }} />
+                        <span className="text-[#333] font-medium">{entry.label}</span>
+                        <span className="text-[#888]">{entry.count.toLocaleString()} ({pct}%)</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Hyperscaler DCs bar chart */}
+          <div className="border border-[#e8e8e8] rounded p-3">
+            <h3 className="text-[11px] font-semibold text-[#333] mb-2">Hyperscaler Instances by Datacenter</h3>
+            {hsDcData && (
+              <ResponsiveContainer width="100%" height={hsDcData.length * 24 + 10}>
+                <BarChart data={hsDcData} layout="vertical" margin={{ top: 0, right: 40, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e8e8e8" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 9, fill: '#666' }} />
+                  <YAxis type="category" dataKey="dc" tick={{ fontSize: 10, fill: '#333' }} width={80} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 2, border: '1px solid #d6d6d6', fontSize: 11 }}
+                    formatter={(value) => [`${value.toLocaleString()} instances`, 'Count']}
+                  />
+                  <Bar dataKey="count" fill="#06b6d4" radius={[0, 3, 3, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
