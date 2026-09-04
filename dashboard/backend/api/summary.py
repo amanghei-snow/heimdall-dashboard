@@ -70,7 +70,7 @@ def hyperscaler_distribution(db: Session = Depends(get_db)):
     on_prem = total - hs
     return {"data": [
         {"label": "Hyperscaler", "count": hs},
-        {"label": "On-Prem / Legacy", "count": on_prem},
+        {"label": "ServiceNow Hosted", "count": on_prem},
     ]}
 
 

@@ -104,3 +104,18 @@ export async function fetchPriorityTrend(params = {}) {
   const { data } = await api.get('/cases/priority-trend', { params });
   return data;
 }
+
+export async function fetchCaseRca(params = {}) {
+  const { data } = await api.get('/cases/rca', { params });
+  return data;
+}
+
+export async function fetchCaseTypeTrend(params = {}) {
+  const { data } = await api.get('/cases/type-trend', { params });
+  return data;
+}
+
+export async function fetchCaseHotZones(params = {}) {
+  const { data } = await api.get('/cases/hot-zones', { params });
+  return data;
+}

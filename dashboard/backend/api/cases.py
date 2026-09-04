@@ -220,6 +220,126 @@ def top_accounts(
     }
 
 
+@router.get("/cases/rca")
+def case_rca(
+    account: Optional[str] = None,
+    instance: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Root cause analysis from closure codes, grouped into buckets."""
+    query = db.query(CaseRecord).filter(CaseRecord.closure_code != "")
+    if account:
+        query = query.filter(CaseRecord.account_name == account)
+    if instance:
+        query = query.filter(CaseRecord.instance == instance)
+
+    rows = (
+        query.with_entities(CaseRecord.closure_code, func.count().label("cnt"))
+        .group_by(CaseRecord.closure_code)
+        .order_by(func.count().desc())
+        .all()
+    )
+
+    buckets = {
+        "ServiceNow Caused": 0,
+        "Customer Caused": 0,
+        "3rd Party": 0,
+        "Unknown / Other": 0,
+    }
+    detail = []
+    for r in rows:
+        code = r[0] or ""
+        count = r[1]
+        lower = code.lower()
+        if "servicenow" in lower or "servicenow" in lower.replace("-", ""):
+            bucket = "ServiceNow Caused"
+        elif "customer" in lower:
+            bucket = "Customer Caused"
+        elif "3rd party" in lower or "third party" in lower:
+            bucket = "3rd Party"
+        else:
+            bucket = "Unknown / Other"
+        buckets[bucket] += count
+        detail.append({"code": code, "count": count, "bucket": bucket})
+
+    return {
+        "buckets": [{"label": k, "count": v} for k, v in buckets.items() if v > 0],
+        "detail": detail,
+    }
+
+
+@router.get("/cases/type-trend")
+def case_type_trend(
+    account: Optional[str] = None,
+    instance: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Monthly trend by case type (bugs, performance, outage, etc.)."""
+    month_col = _month_expr(CaseRecord.opened_at)
+    query = db.query(
+        month_col.label("month"),
+        CaseRecord.case_type,
+        func.count().label("count"),
+    ).filter(CaseRecord.opened_at.isnot(None), CaseRecord.case_type != "")
+
+    if account:
+        query = query.filter(CaseRecord.account_name == account)
+    if instance:
+        query = query.filter(CaseRecord.instance == instance)
+
+    rows = query.group_by(month_col, CaseRecord.case_type).order_by(month_col).all()
+
+    data = {}
+    for r in rows:
+        m = r.month.strftime("%Y-%m") if hasattr(r.month, 'strftime') else str(r.month)[:7] if r.month else ""
+        if m not in data:
+            data[m] = {}
+        data[m][r.case_type or "Other"] = r.count
+
+    return {
+        "trend": [{"month": m, **v} for m, v in sorted(data.items())]
+    }
+
+
+@router.get("/cases/hot-zones")
+def case_hot_zones(
+    account: Optional[str] = None,
+    instance: Optional[str] = None,
+    limit: int = Query(default=20, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """Top categories with priority severity breakdown — hot zone heatmap data."""
+    query = db.query(CaseRecord)
+    if account:
+        query = query.filter(CaseRecord.account_name == account)
+    if instance:
+        query = query.filter(CaseRecord.instance == instance)
+
+    rows = (
+        query.with_entities(
+            CaseRecord.case_category,
+            CaseRecord.priority,
+            func.count().label("cnt"),
+        )
+        .filter(CaseRecord.case_category != "")
+        .group_by(CaseRecord.case_category, CaseRecord.priority)
+        .all()
+    )
+
+    # Reshape: {category: {P1: n, P2: n, total: n}}
+    cats = {}
+    for r in rows:
+        cat = r[0] or "Unknown"
+        pri = r[1] or "Unknown"
+        if cat not in cats:
+            cats[cat] = {"category": cat, "total": 0}
+        cats[cat][pri] = cats[cat].get(pri, 0) + r[2]
+        cats[cat]["total"] += r[2]
+
+    sorted_cats = sorted(cats.values(), key=lambda x: x["total"], reverse=True)[:limit]
+    return {"zones": sorted_cats}
+
+
 @router.get("/cases/priority-trend")
 def priority_trend(
     account: Optional[str] = None,
