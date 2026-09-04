@@ -298,6 +298,8 @@ def _serialize_instance(r: Instance) -> dict:
     return {
         "rank": r.rank,
         "instance": r.instance,
+        "is_hyperscaler": r.is_hyperscaler or False,
+        "datacenter": r.datacenter or "",
         "company": r.company,
         "score": r.score,
         "coverage": r.coverage,

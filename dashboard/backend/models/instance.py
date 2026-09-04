@@ -42,6 +42,10 @@ class Instance(Base):
     node_count = Column(Integer, default=0, index=True)
     app_server_count = Column(Integer, default=0)
 
+    # Datacenter / hosting
+    datacenter = Column(String(32), default="", index=True)
+    is_hyperscaler = Column(Boolean, default=False, index=True)
+
     # Collection status
     has_ruckus_data = Column(Boolean, default=False)
     used_fallback = Column(Boolean, default=False)
@@ -121,6 +125,33 @@ class RapEvent(Base):
 
     __table_args__ = (
         Index("idx_rap_event_session_type", "session_id", "event_type"),
+    )
+
+
+class CaseRecord(Base):
+    """Individual case record from HI for deep analysis."""
+    __tablename__ = "case_records"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    case_number = Column(String(32), unique=True, nullable=False, index=True)
+    account_name = Column(String(512), nullable=False, index=True)
+    instance = Column(String(256), nullable=True, index=True)
+    priority = Column(String(32), default="")
+    state = Column(String(64), default="")
+    category = Column(String(128), default="")
+    subcategory = Column(String(128), default="")
+    case_type = Column(String(128), default="")
+    case_category = Column(String(256), default="")
+    contact_type = Column(String(128), default="")
+    closure_code = Column(String(256), default="")
+    escalated = Column(Boolean, default=False)
+    opened_at = Column(DateTime, nullable=True, index=True)
+    closed_at = Column(DateTime, nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("idx_case_account_opened", "account_name", "opened_at"),
+        Index("idx_case_instance_priority", "instance", "priority"),
     )
 
 

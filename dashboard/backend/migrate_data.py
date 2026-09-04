@@ -4,11 +4,34 @@ Usage:
     python -m dashboard.backend.migrate_data [--json-path output/ruckus_aggregated_data.json]
 """
 import json
+import re
 import argparse
 from pathlib import Path
 
 from dashboard.backend.database import engine, SessionLocal, Base
 from dashboard.backend.models.instance import Instance, TopTable
+
+HYPERSCALER_PODS = {"501", "601", "701", "711"}
+
+
+def _extract_datacenter(row):
+    """Extract datacenter code from node hostnames (e.g. 'ord501')."""
+    nodes = row.get("nodes", [])
+    for n in nodes:
+        if isinstance(n, dict):
+            host = n.get("host", {}).get("name", "")
+            m = re.search(r'\.([a-z]+\d+)\.service-now', host)
+            if m:
+                return m.group(1)
+    return row.get("datacenter", "")
+
+
+def _is_hyperscaler(dc):
+    """Check if datacenter code belongs to a hyperscaler pod (501, 601, 701, 711)."""
+    if not dc:
+        return False
+    m = re.search(r'(\d+)$', dc)
+    return m.group(1) in HYPERSCALER_PODS if m else False
 
 
 def migrate(json_path: str):
@@ -48,6 +71,12 @@ def migrate(json_path: str):
                 # Materialized best DB size for indexed sorting
                 csv_gb = existing.db_gb_csv or 0
                 existing.db_size_best = csv_gb if csv_gb else round((existing.total_data_size_gb or 0) + (existing.total_index_size_gb or 0), 2)
+
+                # Datacenter / hyperscaler
+                dc = _extract_datacenter(row)
+                if dc:
+                    existing.datacenter = dc
+                    existing.is_hyperscaler = _is_hyperscaler(dc)
 
                 # Replace top tables only if new data is available — preserve
                 # existing tables when collection failed and JSON has none.
@@ -92,6 +121,10 @@ def migrate(json_path: str):
                 # Materialized best DB size for indexed sorting
                 csv_gb = inst.db_gb_csv or 0
                 inst.db_size_best = csv_gb if csv_gb else round((inst.total_data_size_gb or 0) + (inst.total_index_size_gb or 0), 2)
+                # Datacenter / hyperscaler
+                dc = _extract_datacenter(row)
+                inst.datacenter = dc
+                inst.is_hyperscaler = _is_hyperscaler(dc)
                 db.add(inst)
                 db.flush()
                 _add_top_tables(db, inst.id, row.get("top_tables", []))

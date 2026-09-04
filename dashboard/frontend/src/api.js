@@ -64,3 +64,33 @@ export async function saveRapSession(session) {
   const { data } = await api.post('/rap/sessions', session);
   return data;
 }
+
+export async function fetchCaseSummary(params = {}) {
+  const { data } = await api.get('/cases/summary', { params });
+  return data;
+}
+
+export async function fetchCaseTrend(params = {}) {
+  const { data } = await api.get('/cases/trend', { params });
+  return data;
+}
+
+export async function fetchCaseProblemAreas(params = {}) {
+  const { data } = await api.get('/cases/problem-areas', { params });
+  return data;
+}
+
+export async function fetchCaseBreakdown(params = {}) {
+  const { data } = await api.get('/cases/breakdown', { params });
+  return data;
+}
+
+export async function fetchTopAccounts(params = {}) {
+  const { data } = await api.get('/cases/top-accounts', { params });
+  return data;
+}
+
+export async function fetchPriorityTrend(params = {}) {
+  const { data } = await api.get('/cases/priority-trend', { params });
+  return data;
+}

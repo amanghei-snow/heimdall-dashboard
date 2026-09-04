@@ -9,6 +9,7 @@ from dashboard.backend.api.instances import router as instances_router
 from dashboard.backend.api.rap import router as rap_router
 from dashboard.backend.api.summary import router as summary_router
 from dashboard.backend.api.scan import router as scan_router
+from dashboard.backend.api.cases import router as cases_router
 
 # Create tables on startup
 Base.metadata.create_all(bind=engine)
@@ -33,6 +34,7 @@ app.include_router(instances_router, prefix="/api")
 app.include_router(rap_router, prefix="/api")
 app.include_router(summary_router, prefix="/api")
 app.include_router(scan_router, prefix="/api")
+app.include_router(cases_router, prefix="/api")
 
 # Serve React build (production)
 frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"

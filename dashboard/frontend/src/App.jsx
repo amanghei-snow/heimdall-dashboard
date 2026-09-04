@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Database, Search, Download, ChevronLeft, ChevronRight, Activity, FlaskConical, Users, RefreshCw, AlertTriangle } from 'lucide-react'
+import { Database, Search, Download, ChevronLeft, ChevronRight, Activity, FlaskConical, Users, RefreshCw, AlertTriangle, FileBarChart } from 'lucide-react'
 import { fetchInstances, fetchSummary, fetchScanStatus, startScan } from './api'
 import SummaryCards from './components/SummaryCards'
 import InstanceTable from './components/InstanceTable'
 import ChartsSection from './components/ChartsSection'
 import RapPanel from './components/RapPanel'
 import DeepAuditPanel from './components/DeepAuditPanel'
+import CaseAnalysisPanel from './components/CaseAnalysisPanel'
 import { trackRender, trackTab } from './hooks/usePerformanceTracker'
 
 const TABS = [
@@ -30,6 +31,7 @@ function App() {
   const [auditInstance, setAuditInstance] = useState(null)
   const [scanStatus, setScanStatus] = useState(null)
   const [scanStarting, setScanStarting] = useState(false)
+  const [casesOpen, setCasesOpen] = useState(false)
   const [colSearch, setColSearch] = useState({})
   const searchTimer = useRef(null)
   const colSearchTimer = useRef(null)
@@ -200,7 +202,12 @@ function App() {
           <button onClick={handleExportCSV} className="flex items-center gap-1 px-2.5 py-1.5 bg-[#16a34a] hover:bg-[#15803d] text-white rounded text-[11px] font-medium transition whitespace-nowrap">
             <Download size={12} /> Export
           </button>
-          <button onClick={() => setRapOpen(o => !o)} className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[11px] font-medium transition whitespace-nowrap ${
+          <button onClick={() => { setCasesOpen(o => !o); setRapOpen(false) }} className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[11px] font-medium transition whitespace-nowrap ${
+            casesOpen ? 'bg-white text-[#0891b2] ring-1 ring-[#0891b2]' : 'bg-[#0891b2] hover:bg-[#0e7490] text-white'
+          }`}>
+            <FileBarChart size={12} /> Cases
+          </button>
+          <button onClick={() => { setRapOpen(o => !o); setCasesOpen(false) }} className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[11px] font-medium transition whitespace-nowrap ${
             rapOpen ? 'bg-white text-[#7c3aed] ring-1 ring-[#7c3aed]' : 'bg-[#7c3aed] hover:bg-[#6d28d9] text-white'
           }`}>
             <Activity size={12} /> RAP
@@ -271,7 +278,9 @@ function App() {
         </div>
       </div>
 
-      {rapOpen ? (
+      {casesOpen ? (
+        <CaseAnalysisPanel onClose={() => setCasesOpen(false)} />
+      ) : rapOpen ? (
         <RapPanel open onClose={() => setRapOpen(false)} />
       ) : (
         <>
