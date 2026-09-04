@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+body {
+  margin: 0;
+  font-family: 'SourceSansPro', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 13px;
+  color: #333;
+  background: #f1f1f1;
+  -webkit-font-smoothing: antialiased;
+}
+
+input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* SN-style scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}

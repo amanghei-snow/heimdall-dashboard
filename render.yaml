@@ -1,0 +1,17 @@
+databases:
+  - name: heimdall-db
+    plan: free
+    databaseName: heimdall
+    user: heimdall
+
+services:
+  - type: web
+    name: heimdall-dashboard
+    plan: free
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: heimdall-db
+          property: connectionString

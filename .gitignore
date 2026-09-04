@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+dashboard/frontend/dist/
+
+# Data
+output/
+data/
+*.db
+
+# Env
+.env
+
+# IDE
+.idea/
+.vscode/
+
+# Temp scripts
+apply_indexes.py
+explain_queries.py
+
+# Logs
+*.log
+
+# Large data dirs not needed for deploy
+BugHunt/
+BugHuntDos/
+BugHuntTres/
+static/
+test-results/
+scripts/
+
+# OS
+.DS_Store
