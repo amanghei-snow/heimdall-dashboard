@@ -122,3 +122,39 @@ class RapEvent(Base):
     __table_args__ = (
         Index("idx_rap_event_session_type", "session_id", "event_type"),
     )
+
+
+class AggregatorRun(Base):
+    """History: one row per aggregator collection run."""
+    __tablename__ = "aggregator_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(String(64), nullable=False)
+    top_n = Column(Integer, default=0)
+    instance_count = Column(Integer, default=0)
+
+    snapshots = relationship("AggregatorSnapshot", back_populates="run", cascade="all, delete-orphan")
+
+
+class AggregatorSnapshot(Base):
+    """History: per-instance metrics captured in each aggregator run."""
+    __tablename__ = "aggregator_snapshots"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    run_id = Column(Integer, ForeignKey("aggregator_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    instance = Column(String(256), nullable=False, index=True)
+    total_table_rows = Column(BigInteger, default=0)
+    table_count = Column(Integer, default=0)
+    db_total_size_gb = Column(Float, default=0.0)
+    total_data_size_gb = Column(Float, default=0.0)
+    total_index_size_gb = Column(Float, default=0.0)
+    node_count = Column(Integer, default=0)
+    txn_90d = Column(Float, default=0.0)
+    db_gb_csv = Column(Float, default=0.0)
+    score = Column(Float, default=0.0)
+
+    run = relationship("AggregatorRun", back_populates="snapshots")
+
+    __table_args__ = (
+        Index("idx_snapshot_instance_run", "instance", "run_id"),
+    )

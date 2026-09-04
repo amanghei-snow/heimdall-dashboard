@@ -157,8 +157,74 @@ def get_top_tables(
 
 
 @router.get("/instances/{instance_name}/history")
-def get_instance_history(instance_name: str):
+def get_instance_history(instance_name: str, db: Session = Depends(get_db)):
     """Deep audit: return per-run metric timeline for an instance."""
+    from dashboard.backend.models.instance import AggregatorSnapshot, AggregatorRun
+
+    rows = (
+        db.query(
+            AggregatorRun.id.label("run_id"),
+            AggregatorRun.timestamp,
+            AggregatorSnapshot.node_count,
+            AggregatorSnapshot.table_count,
+            AggregatorSnapshot.db_gb_csv,
+            AggregatorSnapshot.txn_90d,
+            AggregatorSnapshot.total_table_rows,
+            AggregatorSnapshot.db_total_size_gb,
+            AggregatorSnapshot.total_data_size_gb,
+            AggregatorSnapshot.total_index_size_gb,
+            AggregatorSnapshot.score,
+        )
+        .join(AggregatorRun, AggregatorRun.id == AggregatorSnapshot.run_id)
+        .filter(AggregatorSnapshot.instance == instance_name)
+        .order_by(AggregatorRun.timestamp)
+        .all()
+    )
+
+    if not rows:
+        # Fallback: try local SQLite history.db for backwards compatibility
+        return _get_history_from_sqlite(instance_name)
+
+    # Best-available DB size: prefer CSV, fall back to data+index
+    processed = []
+    for r in rows:
+        d = dict(r._mapping)
+        db_gb = d.get("db_gb_csv") or 0
+        if not db_gb:
+            db_gb = round((d.get("total_data_size_gb") or 0) + (d.get("total_index_size_gb") or 0), 2)
+        d["db_gb_csv"] = db_gb
+        processed.append(d)
+
+    # Deduplicate: keep the LAST snapshot per date (most recent run)
+    date_map = {}
+    for d in processed:
+        date = d["timestamp"][:10]
+        date_map[date] = d
+    timeline = [date_map[k] for k in sorted(date_map)]
+
+    # Collapse consecutive entries where all tracked metrics are identical
+    TRACK = ["node_count", "table_count", "db_gb_csv", "txn_90d",
+             "total_table_rows", "db_total_size_gb", "score"]
+    collapsed = [timeline[0]] if timeline else []
+    for entry in timeline[1:]:
+        prev = collapsed[-1]
+        if all((entry.get(k) or 0) == (prev.get(k) or 0) for k in TRACK):
+            continue
+        collapsed.append(entry)
+    timeline = collapsed
+
+    # Compute deltas between consecutive entries
+    for i in range(1, len(timeline)):
+        prev = timeline[i - 1]
+        curr = timeline[i]
+        for key in TRACK:
+            curr[f"d_{key}"] = (curr.get(key) or 0) - (prev.get(key) or 0)
+
+    return {"instance": instance_name, "runs": timeline}
+
+
+def _get_history_from_sqlite(instance_name: str):
+    """Fallback: read history from local SQLite file (for local dev)."""
     import sqlite3
     from pathlib import Path
 
@@ -180,8 +246,6 @@ def get_instance_history(instance_name: str):
             ORDER BY r.timestamp
         """, (instance_name,)).fetchall()
 
-        # Best-available DB size: prefer CSV, fall back to data+index
-        # (same logic as _serialize_instance for consistency with list view)
         processed = []
         for r in rows:
             d = dict(r)
@@ -191,14 +255,12 @@ def get_instance_history(instance_name: str):
             d["db_gb_csv"] = db_gb
             processed.append(d)
 
-        # Deduplicate: keep the LAST snapshot per date (most recent run)
         date_map = {}
         for d in processed:
             date = d["timestamp"][:10]
             date_map[date] = d
         timeline = [date_map[k] for k in sorted(date_map)]
 
-        # Collapse consecutive entries where all tracked metrics are identical
         TRACK = ["node_count", "table_count", "db_gb_csv", "txn_90d",
                  "total_table_rows", "db_total_size_gb", "score"]
         collapsed = [timeline[0]] if timeline else []
@@ -209,7 +271,6 @@ def get_instance_history(instance_name: str):
             collapsed.append(entry)
         timeline = collapsed
 
-        # Compute deltas between consecutive entries
         for i in range(1, len(timeline)):
             prev = timeline[i - 1]
             curr = timeline[i]
