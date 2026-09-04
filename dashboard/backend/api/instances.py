@@ -20,10 +20,10 @@ SORTABLE_COLS = {
     "primary_table_gb", "capacity_tier", "db_type", "release_family",
     "db_total_size_gb", "db_count", "table_count", "total_table_rows",
     "total_data_size_gb", "total_index_size_gb", "node_count",
-    "app_server_count", "has_ruckus_data",
+    "app_server_count", "has_ruckus_data", "is_hyperscaler", "datacenter",
 }
 
-STR_COLS = {"instance", "company", "capacity_tier", "db_type", "release_family"}
+STR_COLS = {"instance", "company", "capacity_tier", "db_type", "release_family", "datacenter"}
 
 
 @router.get("/instances")
