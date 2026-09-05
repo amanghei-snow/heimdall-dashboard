@@ -10,8 +10,8 @@
 | DQ-2 | Zero node count | 1,518 (10.2%) | Audit aggregator node parsing; some instances may be dormant or have no `nodes` array | Open |
 | DQ-3 | Zero DB size | 1,594 (10.7%) | Audit `db_gb_csv` source; may be missing Ruckus data for test/internal instances | Open |
 | DQ-4 | Cannot determine CSP status | 2,122 (14.3%) have no datacenter | Need node hostname data or ServiceNow `cmdb_ci_service` source to get datacenter | Open |
-| DQ-5 | Case collector only fetched ~422k of 2.1M records | Default 365-day lookback + skips empty account.name | Updated `case_collector.py` with `--all` month-windowed pagination; still need to run full sync | Capable |
-| DQ-6 | `case_records` empty on Render | Case data only on local MariaDB | Sync local 422k cases to Render or re-run collector against Render PostgreSQL | Open |
+| DQ-5 | Case collector only fetched ~422k of 2.1M records | Default 365-day lookback + skips empty account.name | Updated `case_collector.py` with `--all` month-windowed pagination; run `--all` when ready | Ready |
+| DQ-6 | `case_records` empty on Render | Case data only on local MariaDB | Synced all 422,046 cases to Render (402,896 with instance mapping, 19,150 without) | **Done** |
 | DQ-7 | Account→instance mapping incomplete | Many cases imported with `instance=NULL` | Use `cmdb_ci_service` xlsx to build stronger account→instance map and re-derive in collector | Open |
 
 ## Features
