@@ -5,7 +5,7 @@ import time
 import requests
 from datetime import datetime, timedelta
 from calendar import monthrange
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -51,16 +51,71 @@ def _month_bounds(year, month):
     return first.strftime("%Y-%m-%d"), last.strftime("%Y-%m-%d")
 
 
-def _fetch_window(db, auth, headers, company_map, company_filter, start, end, total_inserted, total_updated):
-    """Fetch one calendar window from ServiceNow and upsert records."""
+UPSERT_COLS = [
+    "case_number", "account_name", "instance", "priority", "state",
+    "category", "subcategory", "case_type", "case_category",
+    "contact_type", "closure_code", "escalated", "opened_at",
+    "closed_at", "resolved_at",
+]
+
+
+def _build_upsert_sql(dialect):
+    """Build a dialect-aware bulk upsert statement."""
+    col_list = ", ".join(UPSERT_COLS)
+    placeholders = ", ".join([f":{c}" for c in UPSERT_COLS])
+    update_cols = [c for c in UPSERT_COLS if c != "case_number"]
+
+    if dialect == "postgresql":
+        updates = ", ".join([f"{c} = EXCLUDED.{c}" for c in update_cols])
+        return text(
+            f"INSERT INTO case_records ({col_list}) VALUES ({placeholders}) "
+            f"ON CONFLICT (case_number) DO UPDATE SET {updates}"
+        )
+    else:
+        # MySQL / MariaDB
+        updates = ", ".join([f"{c} = VALUES({c})" for c in update_cols])
+        return text(
+            f"INSERT INTO case_records ({col_list}) VALUES ({placeholders}) "
+            f"ON DUPLICATE KEY UPDATE {updates}"
+        )
+
+
+def _parse_record(r, company_map):
+    """Parse a single ServiceNow result dict into an upsert-ready dict."""
+    account = _display_val(r.get("account.name", ""))
+    case_num = r.get("number", "")
+    if not case_num or not account:
+        return None
+    return {
+        "case_number": case_num,
+        "account_name": account,
+        "instance": company_map.get(account.strip().lower()),
+        "priority": _display_val(r.get("priority", "")),
+        "state": _display_val(r.get("state", "")),
+        "category": _display_val(r.get("category", "")),
+        "subcategory": _display_val(r.get("subcategory", "")),
+        "case_type": _display_val(r.get("u_case_type", "")),
+        "case_category": _display_val(r.get("u_case_category", "")),
+        "contact_type": _display_val(r.get("contact_type", "")),
+        "closure_code": _display_val(r.get("u_closure_code", "")),
+        "escalated": _display_val(r.get("u_escalated", "")) == "true",
+        "opened_at": _parse_dt(r.get("opened_at", "")),
+        "closed_at": _parse_dt(r.get("closed_at", "")),
+        "resolved_at": _parse_dt(r.get("resolved_at", "")),
+    }
+
+
+def _fetch_window(db, auth, headers, company_map, company_filter, start, end,
+                  total_inserted, total_updated, upsert_stmt):
+    """Fetch one calendar window from ServiceNow and bulk-upsert records."""
     query = f"opened_at>={start}^opened_at<={end}"
     if company_filter:
         query += f"^account.name={company_filter}"
     query += "^ORDERBYopened_at"
 
     offset = 0
-    window_inserted = 0
-    window_updated = 0
+    window_count = 0
+    retries = 0
 
     while True:
         params = {
@@ -77,58 +132,41 @@ def _fetch_window(db, auth, headers, company_map, company_filter, start, end, to
                 auth=auth, headers=headers, params=params, timeout=120
             )
             resp.raise_for_status()
+            retries = 0
         except requests.RequestException as e:
-            print(f"  Request error at window {start}..{end} offset {offset}: {e}")
-            time.sleep(5)
+            retries += 1
+            wait = min(retries * 5, 60)
+            print(f"  Request error at {start}..{end} offset {offset}: {e}  (retry in {wait}s)")
+            time.sleep(wait)
+            if retries > 10:
+                print(f"  GIVING UP on window {start}..{end} after {retries} retries")
+                break
             continue
 
         results = resp.json().get("result", [])
         if not results:
             break
 
+        # Parse all records in this page
+        batch = []
         for r in results:
-            account = _display_val(r.get("account.name", ""))
-            case_num = r.get("number", "")
-            if not case_num or not account:
-                continue
+            rec = _parse_record(r, company_map)
+            if rec:
+                batch.append(rec)
 
-            # Map account to instance
-            inst_name = company_map.get(account.strip().lower())
+        # Bulk upsert
+        if batch:
+            conn = db.get_bind().connect()
+            conn.execute(upsert_stmt, batch)
+            conn.commit()
+            conn.close()
+            window_count += len(batch)
+            total_inserted[0] += len(batch)
 
-            existing = db.query(CaseRecord).filter_by(case_number=case_num).first()
-            data = dict(
-                account_name=account,
-                instance=inst_name,
-                priority=_display_val(r.get("priority", "")),
-                state=_display_val(r.get("state", "")),
-                category=_display_val(r.get("category", "")),
-                subcategory=_display_val(r.get("subcategory", "")),
-                case_type=_display_val(r.get("u_case_type", "")),
-                case_category=_display_val(r.get("u_case_category", "")),
-                contact_type=_display_val(r.get("contact_type", "")),
-                closure_code=_display_val(r.get("u_closure_code", "")),
-                escalated=_display_val(r.get("u_escalated", "")) == "true",
-                opened_at=_parse_dt(r.get("opened_at", "")),
-                closed_at=_parse_dt(r.get("closed_at", "")),
-                resolved_at=_parse_dt(r.get("resolved_at", "")),
-            )
-
-            if existing:
-                for k, v in data.items():
-                    setattr(existing, k, v)
-                total_updated[0] += 1
-                window_updated += 1
-            else:
-                rec = CaseRecord(case_number=case_num, **data)
-                db.add(rec)
-                total_inserted[0] += 1
-                window_inserted += 1
-
-        db.commit()
         offset += BATCH_SIZE
-        print(f"    {start}..{end}: offset {offset}, +{window_inserted}/~{window_inserted + window_updated}")
+        print(f"    {start}..{end}: offset {offset}, window total {window_count}", flush=True)
 
-    print(f"  Window {start}..{end}: {window_inserted} inserted, {window_updated} updated")
+    print(f"  Window {start}..{end}: {window_count} upserted", flush=True)
 
 
 def collect_cases(lookback_days=365, company_filter=None, all_time=False, start_date=None, end_date=None, month_window=True):
@@ -152,6 +190,11 @@ def collect_cases(lookback_days=365, company_filter=None, all_time=False, start_
     auth = (HI_USER, HI_PASS)
     headers = {"Accept": "application/json"}
 
+    # Build dialect-aware upsert statement
+    dialect = engine.dialect.name
+    upsert_stmt = _build_upsert_sql(dialect)
+    print(f"Using {dialect} dialect for bulk upserts", flush=True)
+
     # Determine date range
     now = datetime.now()
     if all_time:
@@ -164,7 +207,6 @@ def collect_cases(lookback_days=365, company_filter=None, all_time=False, start_
         start = now - timedelta(days=lookback_days)
         end = now
     else:
-        # default 365 days
         start = now - timedelta(days=365)
         end = now
 
@@ -172,30 +214,27 @@ def collect_cases(lookback_days=365, company_filter=None, all_time=False, start_
     total_updated = [0]
 
     if not month_window:
-        # Single query approach (legacy)
         _fetch_window(db, auth, headers, company_map, company_filter,
                       start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"),
-                      total_inserted, total_updated)
+                      total_inserted, total_updated, upsert_stmt)
     else:
-        print(f"Collecting cases from {HI_INSTANCE} ({start.date()} to {end.date()}) by month...")
+        print(f"Collecting cases from {HI_INSTANCE} ({start.date()} to {end.date()}) by month...", flush=True)
         cursor = start.replace(day=1)
         while cursor <= end:
             window_start, window_end = _month_bounds(cursor.year, cursor.month)
-            # Clamp to requested end
             if cursor.year == end.year and cursor.month == end.month:
                 window_end = end.strftime("%Y-%m-%d")
             if datetime.strptime(window_start, "%Y-%m-%d") > end:
                 break
             _fetch_window(db, auth, headers, company_map, company_filter,
-                          window_start, window_end, total_inserted, total_updated)
-            # next month
+                          window_start, window_end, total_inserted, total_updated, upsert_stmt)
             if cursor.month == 12:
                 cursor = cursor.replace(year=cursor.year + 1, month=1)
             else:
                 cursor = cursor.replace(month=cursor.month + 1)
 
     db.close()
-    print(f"Done: {total_inserted[0]} inserted, {total_updated[0]} updated")
+    print(f"Done: {total_inserted[0]} records upserted", flush=True)
 
 
 if __name__ == "__main__":
@@ -207,7 +246,19 @@ if __name__ == "__main__":
     parser.add_argument("--start", type=str, default=None, help="Start date YYYY-MM-DD")
     parser.add_argument("--end", type=str, default=None, help="End date YYYY-MM-DD")
     parser.add_argument("--company", type=str, default=None, help="Filter to specific company")
+    parser.add_argument("--db", type=str, default=None,
+                        help="Override DATABASE_URL (e.g. point directly at Render PostgreSQL)")
     args = parser.parse_args()
+
+    # Allow overriding the database target at runtime
+    if args.db:
+        os.environ["DATABASE_URL"] = args.db
+        # Re-initialize engine with new URL
+        from importlib import reload
+        import dashboard.backend.database as db_mod
+        reload(db_mod)
+        from dashboard.backend.database import SessionLocal as _SL, Base as _B, engine as _E
+        globals().update({"SessionLocal": _SL, "Base": _B, "engine": _E})
 
     start_date = args.start
     end_date = args.end
