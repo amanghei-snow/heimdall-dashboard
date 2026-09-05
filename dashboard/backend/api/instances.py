@@ -24,6 +24,7 @@ SORTABLE_COLS = {
 }
 
 STR_COLS = {"instance", "company", "capacity_tier", "db_type", "release_family", "datacenter"}
+BOOL_COLS = {"is_hyperscaler", "has_ruckus_data"}
 
 
 @router.get("/instances")
@@ -61,6 +62,13 @@ def list_instances(
                     continue
                 col_attr = getattr(Instance, col, None)
                 if col_attr is None:
+                    continue
+                if col in BOOL_COLS:
+                    bool_val = val.lower() in ("true", "1", "yes", "y") if isinstance(val, str) else bool(val)
+                    if op == "=":
+                        query = query.filter(col_attr == bool_val)
+                    elif op == "!=":
+                        query = query.filter(col_attr != bool_val)
                     continue
                 if col in STR_COLS:
                     if op == "=":

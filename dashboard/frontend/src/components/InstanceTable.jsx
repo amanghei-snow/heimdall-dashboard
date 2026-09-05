@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronUp, ChevronDown, ChevronRight, History } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, History, Search, X } from 'lucide-react'
 import { fetchTopTables } from '../api'
 import TopTablesPanel from './TopTablesPanel'
 
@@ -108,16 +108,22 @@ function DeltaBadge({ value }) {
   return <span className={`ml-1 text-[10px] font-medium ${color}`}>{display}</span>
 }
 
-export default function InstanceTable({ data, tab, sort, sortDir, onSort, loading, colSearch = {}, onColSearch, onAudit }) {
+export default function InstanceTable({ data, tab, sort, sortDir, onSort, loading, colSearch = {}, onColSearch, onAudit, onCellFilter }) {
   const [expanded, setExpanded] = useState({})
   const [topTables, setTopTables] = useState({})
   const [ctxMenu, setCtxMenu] = useState(null)
   const columns = TAB_COLUMNS[tab] || TAB_COLUMNS.overview
   const showExpand = tab === 'overview' || tab === 'tables'
 
-  const handleContextMenu = (e, colKey) => {
+  const handleHeaderContextMenu = (e, colKey) => {
     e.preventDefault()
-    setCtxMenu({ x: e.clientX, y: e.clientY, col: colKey })
+    setCtxMenu({ x: e.clientX, y: e.clientY, col: colKey, mode: 'header' })
+  }
+
+  const handleCellContextMenu = (e, col, row) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCtxMenu({ x: e.clientX, y: e.clientY, col: col.key, row, mode: 'cell', label: col.label })
   }
 
   const deltaMap = {
@@ -151,18 +157,40 @@ export default function InstanceTable({ data, tab, sort, sortDir, onSort, loadin
           className="fixed z-50 bg-white border border-[#d6d6d6] rounded shadow-lg py-1 min-w-[160px]"
           style={{ left: ctxMenu.x, top: ctxMenu.y }}
         >
-          <button
-            onClick={() => { onSort(ctxMenu.col, 'asc'); setCtxMenu(null) }}
-            className="w-full text-left px-3 py-1.5 text-[12px] text-[#333] hover:bg-[#e8f4fd] flex items-center gap-2"
-          >
-            <ChevronUp size={12} className="text-[#666]" /> Sort A → Z (ascending)
-          </button>
-          <button
-            onClick={() => { onSort(ctxMenu.col, 'desc'); setCtxMenu(null) }}
-            className="w-full text-left px-3 py-1.5 text-[12px] text-[#333] hover:bg-[#e8f4fd] flex items-center gap-2"
-          >
-            <ChevronDown size={12} className="text-[#666]" /> Sort Z → A (descending)
-          </button>
+          {ctxMenu.mode === 'header' ? (
+            <>
+              <button
+                onClick={() => { onSort(ctxMenu.col, 'asc'); setCtxMenu(null) }}
+                className="w-full text-left px-3 py-1.5 text-[12px] text-[#333] hover:bg-[#e8f4fd] flex items-center gap-2"
+              >
+                <ChevronUp size={12} className="text-[#666]" /> Sort A → Z (ascending)
+              </button>
+              <button
+                onClick={() => { onSort(ctxMenu.col, 'desc'); setCtxMenu(null) }}
+                className="w-full text-left px-3 py-1.5 text-[12px] text-[#333] hover:bg-[#e8f4fd] flex items-center gap-2"
+              >
+                <ChevronDown size={12} className="text-[#666]" /> Sort Z → A (descending)
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="px-3 py-1 text-[10px] text-[#888] truncate">
+                {ctxMenu.label || ctxMenu.col}
+              </div>
+              <button
+                onClick={() => { onCellFilter && onCellFilter('match', ctxMenu.col, ctxMenu.row); setCtxMenu(null) }}
+                className="w-full text-left px-3 py-1.5 text-[12px] text-[#333] hover:bg-[#e8f4fd] flex items-center gap-2"
+              >
+                <Search size={12} className="text-[#666]" /> Show Matching
+              </button>
+              <button
+                onClick={() => { onCellFilter && onCellFilter('exclude', ctxMenu.col, ctxMenu.row); setCtxMenu(null) }}
+                className="w-full text-left px-3 py-1.5 text-[12px] text-[#333] hover:bg-[#e8f4fd] flex items-center gap-2"
+              >
+                <X size={12} className="text-[#666]" /> Filter Out
+              </button>
+            </>
+          )}
           <div className="border-t border-[#e8e8e8] my-1" />
           <button
             onClick={() => setCtxMenu(null)}
@@ -184,7 +212,7 @@ export default function InstanceTable({ data, tab, sort, sortDir, onSort, loadin
               <th
                 key={col.key}
                 onClick={() => onSort(col.key)}
-                onContextMenu={(e) => handleContextMenu(e, col.key)}
+                onContextMenu={(e) => handleHeaderContextMenu(e, col.key)}
                 className={`px-2 py-1.5 text-[11px] font-semibold text-[#333] cursor-pointer hover:bg-[#e0e0e0] transition select-none border-r border-[#d6d6d6] ${col.w} ${col.align || 'text-left'}`}
               >
                 <div className={`flex items-center ${col.align === 'text-right' ? 'justify-end' : col.align === 'text-center' ? 'justify-center' : ''}`}>
@@ -277,10 +305,13 @@ export default function InstanceTable({ data, tab, sort, sortDir, onSort, loadin
                     /* Instance link — click to expand */
                     const clickHandler = col.link && showExpand ? () => toggleExpand(row.instance) : undefined
 
+                    const cellCanFilter = true
+
                     return (
                       <td
                         key={col.key}
                         onClick={clickHandler}
+                        onContextMenu={(e) => cellCanFilter && handleCellContextMenu(e, col, row)}
                         className={`px-2 py-1.5 text-[12px] border-r border-[#e8e8e8] ${col.w} ${col.align || ''} overflow-hidden text-ellipsis whitespace-nowrap ${
                           col.link ? 'text-[#0066cc] hover:underline cursor-pointer font-medium' : 'text-[#333]'
                         }`}

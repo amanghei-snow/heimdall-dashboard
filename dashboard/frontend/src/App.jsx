@@ -116,6 +116,20 @@ function App() {
     }, 400)
   }
 
+  const handleCellFilter = (mode, col, row) => {
+    const val = row[col]
+    if (val == null || val === '') return
+    let filterVal = ''
+    if (typeof val === 'boolean') {
+      filterVal = mode === 'match' ? (val ? '= true' : '= false') : (val ? '!= true' : '!= false')
+    } else if (typeof val === 'number') {
+      filterVal = mode === 'match' ? `= ${val}` : `!= ${val}`
+    } else {
+      filterVal = mode === 'match' ? `= ${val}` : `!= ${val}`
+    }
+    handleColSearch(col, filterVal)
+  }
+
   const handleSort = (col, forceDir) => {
     if (forceDir) {
       setSort(col)
@@ -302,6 +316,7 @@ function App() {
               colSearch={colSearch}
               onColSearch={handleColSearch}
               onAudit={setAuditInstance}
+              onCellFilter={handleCellFilter}
             />
           </div>
 
