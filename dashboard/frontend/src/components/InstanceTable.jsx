@@ -17,7 +17,7 @@ const TAB_COLUMNS = {
   overview: [
     { key: 'rank', label: '#', w: 'w-[50px]', align: 'text-right' },
     { key: 'instance', label: 'Instance', w: 'w-[180px]', link: true },
-    { key: 'is_hyperscaler', label: 'HS', w: 'w-[40px]', align: 'text-center', fmt: v => v ? '☁️' : '', noSearch: true },
+    { key: 'is_hyperscaler', label: 'HS', w: 'w-[40px]', align: 'text-center', fmt: v => v ? 'Yes' : 'No', noSearch: true },
     { key: 'company', label: 'Company', w: 'w-[220px]' },
     { key: 'score', label: 'Score', w: 'w-[75px]', align: 'text-right', fmt: v => v?.toFixed(4) },
     { key: 'txn_90d', label: 'Txn (90d)', w: 'w-[95px]', align: 'text-right', fmt: fmtNum },
@@ -30,7 +30,7 @@ const TAB_COLUMNS = {
   databases: [
     { key: 'rank', label: '#', w: 'w-[50px]', align: 'text-right' },
     { key: 'instance', label: 'Instance', w: 'w-[180px]', link: true },
-    { key: 'is_hyperscaler', label: 'HS', w: 'w-[40px]', align: 'text-center', fmt: v => v ? '☁️' : '', noSearch: true },
+    { key: 'is_hyperscaler', label: 'HS', w: 'w-[40px]', align: 'text-center', fmt: v => v ? 'Yes' : 'No', noSearch: true },
     { key: 'company', label: 'Company', w: 'w-[220px]' },
     { key: 'db_gb_csv', label: 'DB Size', w: 'w-[95px]', align: 'text-right', fmt: fmtSize },
     { key: 'db_total_size_gb', label: 'Ruckus DB', w: 'w-[105px]', align: 'text-right', fmt: fmtSize },
@@ -42,7 +42,7 @@ const TAB_COLUMNS = {
   tables: [
     { key: 'rank', label: '#', w: 'w-[50px]', align: 'text-right' },
     { key: 'instance', label: 'Instance', w: 'w-[180px]', link: true },
-    { key: 'is_hyperscaler', label: 'HS', w: 'w-[40px]', align: 'text-center', fmt: v => v ? '☁️' : '', noSearch: true },
+    { key: 'is_hyperscaler', label: 'HS', w: 'w-[40px]', align: 'text-center', fmt: v => v ? 'Yes' : 'No', noSearch: true },
     { key: 'company', label: 'Company', w: 'w-[220px]' },
     { key: 'table_count', label: 'Tables', w: 'w-[75px]', align: 'text-right', fmt: fmtNum },
     { key: 'total_table_rows', label: 'Total Rows', w: 'w-[105px]', align: 'text-right', fmt: fmtNum },
@@ -53,7 +53,7 @@ const TAB_COLUMNS = {
   nodes: [
     { key: 'rank', label: '#', w: 'w-[50px]', align: 'text-right' },
     { key: 'instance', label: 'Instance', w: 'w-[180px]', link: true },
-    { key: 'is_hyperscaler', label: 'HS', w: 'w-[40px]', align: 'text-center', fmt: v => v ? '☁️' : '', noSearch: true },
+    { key: 'is_hyperscaler', label: 'HS', w: 'w-[40px]', align: 'text-center', fmt: v => v ? 'Yes' : 'No', noSearch: true },
     { key: 'company', label: 'Company', w: 'w-[220px]' },
     { key: 'node_count', label: 'Nodes', w: 'w-[75px]', align: 'text-right' },
     { key: 'app_server_count', label: 'App Servers', w: 'w-[95px]', align: 'text-right' },
@@ -63,7 +63,7 @@ const TAB_COLUMNS = {
   scoring: [
     { key: 'rank', label: '#', w: 'w-[50px]', align: 'text-right' },
     { key: 'instance', label: 'Instance', w: 'w-[180px]', link: true },
-    { key: 'is_hyperscaler', label: 'HS', w: 'w-[40px]', align: 'text-center', fmt: v => v ? '☁️' : '', noSearch: true },
+    { key: 'is_hyperscaler', label: 'HS', w: 'w-[40px]', align: 'text-center', fmt: v => v ? 'Yes' : 'No', noSearch: true },
     { key: 'company', label: 'Company', w: 'w-[220px]' },
     { key: 'score', label: 'Score', w: 'w-[75px]', align: 'text-right', fmt: v => v?.toFixed(4) },
     { key: 'coverage', label: 'Coverage', w: 'w-[75px]', align: 'text-right', fmt: v => `${(v * 100).toFixed(0)}%` },
