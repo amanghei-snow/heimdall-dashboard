@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ChevronUp, ChevronDown, ChevronRight, History, Search, X } from 'lucide-react'
 import { fetchTopTables } from '../api'
 import TopTablesPanel from './TopTablesPanel'
+import InstanceCasePanel from './InstanceCasePanel'
 
 /* Human-readable size: GB → TB when ≥ 1000 GB */
 const fmtSize = v => {
@@ -110,6 +111,7 @@ function DeltaBadge({ value }) {
 
 export default function InstanceTable({ data, tab, sort, sortDir, onSort, loading, colSearch = {}, onColSearch, onAudit, onCellFilter }) {
   const [expanded, setExpanded] = useState({})
+  const [detailTab, setDetailTab] = useState({})
   const [topTables, setTopTables] = useState({})
   const [ctxMenu, setCtxMenu] = useState(null)
   const columns = TAB_COLUMNS[tab] || TAB_COLUMNS.overview
@@ -335,17 +337,33 @@ export default function InstanceTable({ data, tab, sort, sortDir, onSort, loadin
                 </tr>
               ]
               if (showExpand && expanded[row.instance]) {
+                const activeDetail = detailTab[row.instance] || 'top_tables'
                 rows.push(
                   <tr key={`${row.instance}-detail`} className="bg-[#f5f9fc]" style={{ display: 'table-row' }}>
                     <td colSpan={totalCols} className="border-b border-[#d6d6d6] p-0" style={{ overflow: 'visible' }}>
                       <div className="px-4 py-3">
-                        <div className="text-[11px] font-semibold text-[#333] mb-2">
-                          Top Tables — {row.instance} {row.company && <span className="font-normal text-[#888]">({row.company})</span>}
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-[11px] font-semibold text-[#333]">{row.instance}</span>
+                          {row.company && <span className="text-[11px] font-normal text-[#888]">({row.company})</span>}
                         </div>
-                        <TopTablesPanel
-                          tables={topTables[row.instance]}
-                          instanceName={row.instance}
-                        />
+                        <div className="flex gap-2 mb-2 border-b border-[#d6d6d6]">
+                          <button
+                            onClick={() => { setDetailTab(p => ({ ...p, [row.instance]: 'top_tables' })); if (!topTables[row.instance]) { fetchTopTables(row.instance).then(t => setTopTables(p => ({ ...p, [row.instance]: t }))).catch(console.error) }}}
+                            className={`text-[11px] px-2 py-1 ${activeDetail === 'top_tables' ? 'text-[#0066cc] border-b-2 border-[#0066cc] font-semibold' : 'text-[#888]'}`}
+                          >Top Tables</button>
+                          <button
+                            onClick={() => setDetailTab(p => ({ ...p, [row.instance]: 'cases' }))}
+                            className={`text-[11px] px-2 py-1 ${activeDetail === 'cases' ? 'text-[#0066cc] border-b-2 border-[#0066cc] font-semibold' : 'text-[#888]'}`}
+                          >Cases</button>
+                        </div>
+                        {activeDetail === 'top_tables' ? (
+                          <TopTablesPanel
+                            tables={topTables[row.instance]}
+                            instanceName={row.instance}
+                          />
+                        ) : (
+                          <InstanceCasePanel instanceName={row.instance} />
+                        )}
                       </div>
                     </td>
                   </tr>
